@@ -165,6 +165,10 @@ function isDirtySavedRow(row) {
   return row.status === 'dirty' || row.status === 'update-error';
 }
 
+function isPersistedRow(row) {
+  return /^[a-f\d]{24}$/i.test(row.id);
+}
+
 function App() {
   const [rows, setRows] = React.useState([]);
   const [selectedIds, setSelectedIds] = React.useState([]);
@@ -386,7 +390,7 @@ function App() {
     setSelectedIds((currentIds) => Array.from(new Set([...currentIds, ...filteredRows.map((row) => row.id)])));
   }
 
-  function deleteSelectedRows() {
+  async function deleteSelectedRows() {
     if (selectedFilteredRows.length === 0) {
       setMessage('Select at least one visible row to delete.');
       return;
@@ -394,13 +398,31 @@ function App() {
 
     if (!window.confirm(`Delete ${selectedFilteredRows.length} selected row(s)?`)) return;
 
-    const deleteIds = new Set(selectedFilteredRows.map((row) => row.id));
-    setRows((currentRows) => currentRows.filter((row) => !deleteIds.has(row.id)));
-    setSelectedIds((currentIds) => currentIds.filter((id) => !deleteIds.has(id)));
-    setMessage('Selected visible rows deleted.');
+    const savedRows = selectedFilteredRows.filter(isPersistedRow);
+
+    try {
+      if (savedRows.length > 0) {
+        const response = await fetch('/api/employees', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: savedRows.map((row) => row.id) }),
+        });
+
+        if (!response.ok) {
+          throw new Error(await readApiError(response, 'Unable to delete selected rows.'));
+        }
+      }
+
+      const deleteIds = new Set(selectedFilteredRows.map((row) => row.id));
+      setRows((currentRows) => currentRows.filter((row) => !deleteIds.has(row.id)));
+      setSelectedIds((currentIds) => currentIds.filter((id) => !deleteIds.has(id)));
+      setMessage(`${selectedFilteredRows.length} selected visible row(s) deleted from MongoDB.`);
+    } catch (error) {
+      setMessage(error.message);
+    }
   }
 
-  function deleteAllVisibleRows() {
+  async function deleteAllVisibleRows() {
     if (filteredRows.length === 0) {
       setMessage('No visible rows to delete.');
       return;
@@ -408,10 +430,28 @@ function App() {
 
     if (!window.confirm(`Delete all ${filteredRows.length} visible row(s)?`)) return;
 
-    const deleteIds = new Set(filteredRows.map((row) => row.id));
-    setRows((currentRows) => currentRows.filter((row) => !deleteIds.has(row.id)));
-    setSelectedIds((currentIds) => currentIds.filter((id) => !deleteIds.has(id)));
-    setMessage('All visible rows deleted.');
+    const savedRows = filteredRows.filter(isPersistedRow);
+
+    try {
+      if (savedRows.length > 0) {
+        const response = await fetch('/api/employees', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: savedRows.map((row) => row.id) }),
+        });
+
+        if (!response.ok) {
+          throw new Error(await readApiError(response, 'Unable to delete visible rows.'));
+        }
+      }
+
+      const deleteIds = new Set(filteredRows.map((row) => row.id));
+      setRows((currentRows) => currentRows.filter((row) => !deleteIds.has(row.id)));
+      setSelectedIds((currentIds) => currentIds.filter((id) => !deleteIds.has(id)));
+      setMessage(`${filteredRows.length} visible row(s) deleted from MongoDB.`);
+    } catch (error) {
+      setMessage(error.message);
+    }
   }
 
   function openImport(mode) {
@@ -577,6 +617,7 @@ function App() {
                     aria-label={`Select ${row.name || 'row'}`}
                     checked={selectedIds.includes(row.id)}
                     onClick={(event) => event.stopPropagation()}
+                    onFocus={(event) => event.stopPropagation()}
                     onChange={() => toggleRow(row.id)}
                     type="checkbox"
                   />
