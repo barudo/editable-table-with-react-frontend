@@ -1,5 +1,7 @@
 # Editable Table With React Front End
 
+Upwork Task ID: 33283900
+
 An editable data table application with a React frontend, a Node.js/Express backend, and MongoDB for persistent storage.
 
 The application is intended to manage employee-style tabular data with inline editing, row selection, Excel import/export, and database synchronization when table data changes.
